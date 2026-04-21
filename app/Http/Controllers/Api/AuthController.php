@@ -10,9 +10,12 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
+use App\Traits\ApiResponse;
 
 class AuthController extends Controller
 {
+    use ApiResponse;
+
     public function register(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -22,11 +25,11 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Validasi gagal',
-                'errors' => $validator->errors()
-            ], 422);
+            return $this->errorResponse(
+                'Validasi gagal',
+                $validator->errors(),
+                422
+            );
         }
 
         $user = User::create([
@@ -36,11 +39,11 @@ class AuthController extends Controller
             'role' => 'user',
         ]);
 
-        return response()->json([
-            'status' => true,
-            'message' => 'Register berhasil',
-            'data' => $user
-        ], 201);
+        return $this->successResponse(
+            'Register berhasil',
+            $user,
+            201
+        );
     }
 
     public function login(Request $request)
@@ -51,11 +54,11 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Validasi gagal',
-                'errors' => $validator->errors()
-            ], 422);
+            return $this->errorResponse(
+                'Validasi gagal',
+                $validator->errors(),
+                422
+            );
         }
 
         $user = User::where('email', $request->email)
@@ -63,10 +66,11 @@ class AuthController extends Controller
             ->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Email atau password salah'
-            ], 401);
+            return $this->errorResponse(
+                'Email atau password salah',
+                null,
+                401
+            );
         }
 
         Otp::where('user_id', $user->id)->update([
@@ -78,19 +82,18 @@ class AuthController extends Controller
         Otp::create([
             'user_id' => $user->id,
             'otp_code' => $otpCode,
-            'expired_at' => Carbon::now()->addMinutes(5),
+            'expired_at' => now()->addMinutes(5),
             'is_used' => false,
         ]);
 
-        return response()->json([
-            'status' => true,
-            'message' => 'Login berhasil, OTP telah dibuat',
-            'data' => [
+        return $this->successResponse(
+            'Login berhasil, OTP telah dibuat',
+            [
                 'user_id' => $user->id,
                 'email' => $user->email,
                 'otp_code' => $otpCode
             ]
-        ]);
+        );
     }
 
     public function verifyOtp(Request $request)
@@ -101,11 +104,11 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Validasi gagal',
-                'errors' => $validator->errors()
-            ], 422);
+            return $this->errorResponse(
+                'Validasi gagal',
+                $validator->errors(),
+                422
+            );
         }
 
         $otp = Otp::where('user_id', $request->user_id)
@@ -114,17 +117,11 @@ class AuthController extends Controller
             ->first();
 
         if (!$otp) {
-            return response()->json([
-                'status' => false,
-                'message' => 'OTP tidak valid'
-            ], 401);
+            return $this->errorResponse('OTP tidak valid', null, 401);
         }
 
-        if (Carbon::now()->gt(Carbon::parse($otp->expired_at))) {
-            return response()->json([
-                'status' => false,
-                'message' => 'OTP sudah kedaluwarsa'
-            ], 401);
+        if (now()->gt($otp->expired_at)) {
+            return $this->errorResponse('OTP sudah kedaluwarsa', null, 401);
         }
 
         $otp->update([
@@ -135,14 +132,13 @@ class AuthController extends Controller
 
         $token = $user->createToken('user_auth_token')->plainTextToken;
 
-        return response()->json([
-            'status' => true,
-            'message' => 'OTP berhasil diverifikasi',
-            'data' => [
+        return $this->successResponse(
+            'OTP berhasil diverifikasi',
+            [
                 'token' => $token,
                 'token_type' => 'Bearer',
                 'user' => $user
             ]
-        ]);
+        );
     }
 }

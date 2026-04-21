@@ -7,9 +7,12 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use App\Traits\ApiResponse;
 
 class AdminAuthController extends Controller
 {
+    use ApiResponse;
+
     public function login(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -18,11 +21,11 @@ class AdminAuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Validasi gagal',
-                'errors' => $validator->errors()
-            ], 422);
+            return $this->errorResponse(
+                'Validasi gagal',
+                $validator->errors(),
+                422
+            );
         }
 
         $admin = User::where('email', $request->email)
@@ -30,22 +33,22 @@ class AdminAuthController extends Controller
             ->first();
 
         if (!$admin || !Hash::check($request->password, $admin->password)) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Email atau password admin salah'
-            ], 401);
+            return $this->errorResponse(
+                'Email atau password admin salah',
+                null,
+                401
+            );
         }
 
         $token = $admin->createToken('admin_auth_token')->plainTextToken;
 
-        return response()->json([
-            'status' => true,
-            'message' => 'Login admin berhasil',
-            'data' => [
+        return $this->successResponse(
+            'Login admin berhasil',
+            [
                 'token' => $token,
                 'token_type' => 'Bearer',
                 'admin' => $admin
             ]
-        ]);
+        );
     }
 }
